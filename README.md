@@ -50,10 +50,15 @@ Requirements: Android 8.0+ and Google Play services, which handles background re
 - Furniture models come from **Make 3D** (AI) in the photo editor, or from any GLB file.
 - Export the furnished scene as GLB through the share sheet.
 
-**AI (optional)**
-- **AI render**: sends the composed photo to OpenAI image editing (`gpt-image-2` by default) and gets back a photorealistic version.
-- **Make 3D**: sends a furniture cutout to Meshy image-to-3D and saves the returned **GLB** to your model library.
-- Asks before every upload and only connects over HTTPS. The app token is encrypted with the Android Keystore. Provider keys stay on the gateway.
+**AI Render (ChatGPT or Gemini)**
+- Tap **✦ Render** in a design. The app sends the room with all placed furniture, plus each furniture image as a reference, to **ChatGPT** (OpenAI `gpt-image-2`) or **Gemini** (`gemini-2.5-flash-image`). You can change the model in Settings.
+- Style presets: Just make it real, Modern Minimal, Japandi, Luxury Contemporary, Scandinavian, Mid-Century, Modern Arabic and Industrial Loft. Lighting presets, an optional "refresh walls & decor" setting, and free-text wishes.
+- Before/after slider; save to gallery or share.
+- Uses **your own API key**, entered on the render screen or in Settings. The key is encrypted with the Android Keystore and only sent to that provider. Each render uses your credits.
+
+**Make 3D (advanced, optional)**: sends a furniture cutout to Meshy through the optional gateway in `backend/` and saves a GLB.
+
+**Install / update:** download https://github.com/yk2659766-del/SOUL-360/releases/download/latest/Soul360Design.apk on the phone and install. Builds from version 0.2.0 onward share one signing key, so each update installs over the previous one.
 
 ## Limits
 
