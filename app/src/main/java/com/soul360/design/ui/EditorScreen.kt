@@ -10,6 +10,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
@@ -100,16 +107,9 @@ import java.io.ByteArrayOutputStream
 import java.net.URLEncoder
 import kotlin.math.roundToInt
 
-private const val DEFAULT_RENDER_PROMPT =
-    "Photorealistic interior photograph. Keep the room architecture, camera angle, walls, windows and floor " +
-        "exactly as they are. Keep every added furniture item in the same position, size and style, but blend it " +
-        "naturally with matching perspective, lighting, reflections and soft contact shadows."
-
 private sealed interface AiState {
-    data class ConfirmRender(val prompt: String) : AiState
     data class ConfirmModel(val layer: FurnitureLayer) : AiState
     data class Running(val title: String, val status: String) : AiState
-    data class RenderResult(val image: Bitmap) : AiState
 }
 
 @Composable
@@ -128,6 +128,7 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
     var showSearch by remember { mutableStateOf(false) }
     var exportMenu by remember { mutableStateOf(false) }
     var ai by remember { mutableStateOf<AiState?>(null) }
+    var renderInput by remember { mutableStateOf<Pair<Bitmap, List<Bitmap>>?>(null) }
     var aiJob by remember { mutableStateOf<Job?>(null) }
 
     LaunchedEffect(initial.id) {
@@ -241,25 +242,21 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
         return GatewayClient(settings.gatewayUrl, token)
     }
 
-    fun runRender(prompt: String) {
-        val client = gatewayOrNull() ?: return
+    fun openRender() {
         val r = room ?: return
-        aiJob = scope.launch {
+        busy = "Preparing your design…"
+        scope.launch {
             try {
-                ai = AiState.Running("AI render", "Preparing…")
-                val png = withContext(Dispatchers.Default) {
-                    val comp = Compositor.render(r, project.layers, images, shadows, 1536)
-                    ByteArrayOutputStream().also { comp.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+                val layers = project.layers
+                val (comp, furn) = withContext(Dispatchers.Default) {
+                    val c = Compositor.render(r, layers, images, shadows, 1536)
+                    val f = layers.map { it.imageFile }.distinct().mapNotNull { images[it] }
+                    c to f
                 }
-                val bytes = client.run(GatewayClient.Kind.RENDER, png, prompt) { s -> ai = AiState.Running("AI render", s) }
-                val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    ?: throw IllegalStateException("The gateway returned an unreadable image.")
-                ai = AiState.RenderResult(bmp)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                ai = null
+                renderInput = comp to furn
             } catch (e: Exception) {
-                ai = null; message = "AI render failed" to (e.message ?: "")
-            } finally { aiJob = null }
+                message = "AI Render" to (e.message ?: "Could not prepare the image.")
+            } finally { busy = null }
         }
     }
 
@@ -286,17 +283,21 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
 
     val selected = project.layers.firstOrNull { it.id == selectedId }
 
-    Column(Modifier.fillMaxSize().background(Palette.Cream).statusBarsPadding().navigationBarsPadding()) {
+    Column(Modifier.fillMaxSize().background(Palette.Ink).statusBarsPadding().navigationBarsPadding()) {
         // Top bar
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { close() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Close and save") }
-            Text(project.name, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleMedium)
+            IconButton(onClick = { close() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Close and save", tint = Color.White) }
+            Column(Modifier.weight(1f)) {
+                Text(project.name.removePrefix("Room – "), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleLarge, color = Color.White)
+                Text("${project.layers.size} item(s)", style = MaterialTheme.typography.labelSmall, color = Palette.Taupe)
+            }
             IconButton(onClick = {
                 persist(reportErrors = true)
                 if (message == null) android.widget.Toast.makeText(context, "Saved", android.widget.Toast.LENGTH_SHORT).show()
-            }) { Icon(Icons.Filled.Save, "Save") }
+            }) { Icon(Icons.Filled.Save, "Save", tint = Color.White) }
             Box {
-                IconButton(onClick = { exportMenu = true }) { Icon(Icons.Filled.IosShare, "Export") }
+                IconButton(onClick = { exportMenu = true }) { Icon(Icons.Filled.IosShare, "Export", tint = Color.White) }
                 DropdownMenu(expanded = exportMenu, onDismissRequest = { exportMenu = false }) {
                     DropdownMenuItem(text = { Text("Share image…") }, onClick = { exportMenu = false; exportImage(false) })
                     DropdownMenuItem(text = { Text("Save to gallery") }, onClick = { exportMenu = false; exportImage(true) })
@@ -305,10 +306,10 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
         }
 
         // Canvas
-        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).padding(8.dp), contentAlignment = Alignment.Center) {
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).padding(horizontal = 12.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
             val r = room
             if (r == null) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = Palette.Orange)
             } else {
                 val density = LocalDensity.current
                 val maxW = constraints.maxWidth.toFloat()
@@ -320,6 +321,7 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
                 Box(
                     Modifier
                         .size(with(density) { canvasW.toDp() }, with(density) { canvasH.toDp() })
+                        .clip(RoundedCornerShape(18.dp))
                         .pointerInput(Unit) { detectTapGestures { selectedId = null } }
                 ) {
                     Image(roomImage, "Room photo", Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
@@ -352,22 +354,37 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
                             }
                         } }
                     }
+                    if (showOriginal) {
+                        Text("ORIGINAL", Modifier.align(Alignment.TopStart).padding(10.dp).clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.5f)).padding(horizontal = 10.dp, vertical = 4.dp),
+                            color = Color.White, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                if (project.layers.isEmpty()) {
+                    Text("Tap  Add  to place furniture images, then  ✦ Render",
+                        Modifier.align(Alignment.BottomCenter).padding(12.dp).clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 14.dp, vertical = 8.dp),
+                        color = Color.White, style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
 
         // Selected-layer controls
         if (selected != null && !showOriginal) {
-            Surface(color = Palette.Sand, shape = MaterialTheme.shapes.large, modifier = Modifier.padding(horizontal = 8.dp)) {
-                Column(Modifier.heightIn(max = 260.dp).verticalScroll(rememberScrollState()).padding(12.dp)) {
+            Surface(color = Palette.Cream, shape = RoundedCornerShape(24.dp), modifier = Modifier.padding(horizontal = 10.dp)) {
+                Column(Modifier.heightIn(max = 270.dp).verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Selected item", style = MaterialTheme.typography.titleMedium, color = Palette.Ink, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { selectedId = null }) { Text("Done") }
+                    }
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        AssistChip(onClick = { update(selected.id) { it.copy(flipped = !it.flipped) } },
-                            label = { Text("Flip") }, leadingIcon = { Icon(Icons.Filled.Flip, null) })
                         AssistChip(onClick = { cutout(selected) },
                             label = { Text("Remove background") }, leadingIcon = { Icon(Icons.Filled.ContentCut, null) })
+                        AssistChip(onClick = { update(selected.id) { it.copy(flipped = !it.flipped) } },
+                            label = { Text("Flip") }, leadingIcon = { Icon(Icons.Filled.Flip, null) })
                         AssistChip(onClick = {
                             project = project.copy(layers = project.layers.filter { it.id != selected.id } + selected)
-                        }, label = { Text("Bring to front") }, leadingIcon = { Icon(Icons.Filled.FlipToFront, null) })
+                        }, label = { Text("To front") }, leadingIcon = { Icon(Icons.Filled.FlipToFront, null) })
                         AssistChip(onClick = { ai = AiState.ConfirmModel(selected) },
                             label = { Text("Make 3D") }, leadingIcon = { Icon(Icons.Filled.ViewInAr, null) })
                         AssistChip(onClick = {
@@ -390,24 +407,33 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
             }
         }
 
-        // Bottom actions
+        // Floating toolbar
         Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier.padding(12.dp).fillMaxWidth().clip(RoundedCornerShape(32.dp)).background(Palette.Charcoal).padding(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            AssistChip(onClick = { pickFurniture.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                label = { Text("Add furniture") }, leadingIcon = { Icon(Icons.Filled.AddPhotoAlternate, null) })
-            AssistChip(onClick = { showSearch = true },
-                label = { Text("Find online") }, leadingIcon = { Icon(Icons.Filled.Search, null) })
-            FilterChip(selected = showOriginal, onClick = { showOriginal = !showOriginal },
-                label = { Text("Original") }, leadingIcon = { Icon(Icons.Filled.Compare, null) })
-            AssistChip(onClick = { ai = AiState.ConfirmRender(DEFAULT_RENDER_PROMPT) },
-                label = { Text("AI render") }, leadingIcon = { Icon(Icons.Filled.AutoAwesome, null) })
+            ToolButton(Icons.Filled.AddPhotoAlternate, "Add") {
+                pickFurniture.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            }
+            ToolButton(Icons.Filled.Search, "Find") { showSearch = true }
+            ToolButton(Icons.Filled.Compare, "Original", active = showOriginal) { showOriginal = !showOriginal }
+            Row(
+                Modifier.clip(CircleShape)
+                    .background(Brush.horizontalGradient(listOf(Palette.Orange, Palette.OrangeDeep)))
+                    .clickable { openRender() }
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.AutoAwesome, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                HSpace(8)
+                Text("Render", color = Color.White, style = MaterialTheme.typography.titleMedium)
+            }
         }
     }
 
     busy?.let { text ->
-        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
             Surface(shape = MaterialTheme.shapes.large) {
                 Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(24.dp)); HSpace(12); Text(text)
@@ -420,22 +446,6 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
     if (showSearch) SearchDialog(onDismiss = { showSearch = false })
 
     when (val s = ai) {
-        is AiState.ConfirmRender -> {
-            var prompt by remember { mutableStateOf(s.prompt) }
-            AlertDialog(
-                onDismissRequest = { ai = null },
-                title = { Text("AI render") },
-                text = {
-                    Column {
-                        Text("Your composed room image will be uploaded to your gateway (${settings.gatewayUrl.ifEmpty { "not set" }}) and sent to OpenAI. This can incur charges. AI may change details — check the result.",
-                            style = MaterialTheme.typography.bodySmall)
-                        OutlinedTextField(prompt, { prompt = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Instructions") }, minLines = 3)
-                    }
-                },
-                confirmButton = { TextButton(onClick = { ai = null; runRender(prompt) }) { Text("Upload & generate") } },
-                dismissButton = { TextButton(onClick = { ai = null }) { Text("Cancel") } },
-            )
-        }
         is AiState.ConfirmModel -> AlertDialog(
             onDismissRequest = { ai = null },
             title = { Text("Make a 3D model") },
@@ -455,19 +465,25 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
             },
             confirmButton = { TextButton(onClick = { aiJob?.cancel() }) { Text("Stop waiting") } },
         )
-        is AiState.RenderResult -> AlertDialog(
-            onDismissRequest = { ai = null },
-            title = { Text("AI render") },
-            text = { Image(s.image.asImageBitmap(), "AI result", Modifier.fillMaxWidth(), contentScale = ContentScale.FillWidth) },
-            confirmButton = {
-                Row {
-                    TextButton(onClick = { saveToGallery(context, s.image, "Soul360-AI-${timestamp()}.png") }) { Text("Save") }
-                    TextButton(onClick = { shareFile(context, writePng(context, s.image, "Soul360-AI-${timestamp()}.png"), "image/png") }) { Text("Share") }
-                }
-            },
-            dismissButton = { TextButton(onClick = { ai = null }) { Text("Close") } },
-        )
         null -> {}
+    }
+
+    renderInput?.let { (comp, furn) ->
+        RenderScreen(settings, comp, furn, onClose = { renderInput = null })
+    }
+}
+
+@Composable
+private fun ToolButton(icon: ImageVector, label: String, active: Boolean = false, onClick: () -> Unit) {
+    Column(
+        Modifier.clip(RoundedCornerShape(22.dp))
+            .background(if (active) Palette.Orange.copy(alpha = 0.28f) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, label, tint = Color.White, modifier = Modifier.size(22.dp))
+        Text(label, color = Palette.Stone, style = MaterialTheme.typography.labelSmall)
     }
 }
 

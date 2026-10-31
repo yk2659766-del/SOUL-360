@@ -14,28 +14,33 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ViewInAr
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,11 +58,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -93,9 +103,7 @@ fun HomeScreen(
         busy = true
         scope.launch {
             try {
-                val project = withContext(Dispatchers.IO) {
-                    store.createProject(ImageTools.decode(context, uri, 2400))
-                }
+                val project = withContext(Dispatchers.IO) { store.createProject(ImageTools.decode(context, uri, 2400)) }
                 onOpenProject(project)
             } catch (e: Exception) {
                 error = e.message ?: "The photo could not be opened."
@@ -103,9 +111,7 @@ fun HomeScreen(
         }
     }
 
-    val pickRoom = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) createFrom(uri)
-    }
+    val pickRoom = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) createFrom(uri) }
     val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         val u = cameraUri
         if (ok && u != null) createFrom(Uri.parse(u))
@@ -119,76 +125,126 @@ fun HomeScreen(
             } catch (e: Exception) { error = e.message }
         }
     }
+    fun launchCamera() {
+        val dir = File(context.cacheDir, "captures").apply { mkdirs() }
+        val file = File(dir, "capture-${timestamp()}.jpg")
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        cameraUri = uri.toString()
+        try { takePicture.launch(uri) } catch (e: ActivityNotFoundException) { error = "No camera app is available on this device." }
+    }
 
-    Column(
-        Modifier.fillMaxSize().background(Palette.Cream).statusBarsPadding().navigationBarsPadding()
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier.fillMaxSize().background(Palette.Cream),
+        contentPadding = PaddingValues(bottom = 32.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Image(painterResource(R.drawable.logo_mark), contentDescription = "SOUL 360 DESIGN logo", modifier = Modifier.size(56.dp))
-            Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                Text("SOUL 360", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = Palette.Ink, letterSpacing = 3.sp)
-                Text("DESIGN", fontSize = 13.sp, color = Palette.Orange, letterSpacing = 6.sp)
-            }
-            IconButton(onClick = onOpenSettings) { Icon(Icons.Filled.Settings, "Settings", tint = Palette.Ink) }
-        }
-
-        Column(Modifier.screenPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = {
-                val dir = File(context.cacheDir, "captures").apply { mkdirs() }
-                val file = File(dir, "capture-${timestamp()}.jpg")
-                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-                cameraUri = uri.toString()
-                try { takePicture.launch(uri) } catch (e: ActivityNotFoundException) { error = "No camera app is available on this device." }
-            }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                Icon(Icons.Filled.CameraAlt, null); HSpace(); Text("Photograph a room")
-            }
-            FilledTonalButton(onClick = {
-                pickRoom.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                Icon(Icons.Filled.PhotoLibrary, null); HSpace(); Text("Choose a room photo")
-            }
-            FilledTonalButton(onClick = { onOpenStudio(rooms.firstOrNull()) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                Icon(Icons.Filled.ViewInAr, null); HSpace(); Text("3D Studio")
-            }
-        }
-
-        LazyColumn(Modifier.fillMaxWidth().weight(1f).padding(top = 12.dp)) {
-            item { SectionTitle("Photo projects") }
-            if (projects.isEmpty()) item { EmptyHint("Photograph or choose a room to start designing.") }
-            items(projects, key = { it.id }) { p ->
-                ProjectRow(store, p, onClick = { onOpenProject(p) }, onDelete = { pendingDelete = p })
-            }
-            item {
-                Row(Modifier.fillMaxWidth().padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SectionTitle("3D room scans", Modifier.weight(1f))
-                    TextButton(onClick = { importRoom.launch(arrayOf("*/*")) }) { Text("Import .glb") }
-                }
-            }
-            if (rooms.isEmpty()) item {
-                EmptyHint("Scan a room with a 3D scanning app that exports GLB, then import it here.")
-            }
-            items(rooms, key = { it.path }) { f ->
-                Row(
-                    Modifier.fillMaxWidth().clickable { onOpenStudio(f) }.padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.ViewInAr, null, tint = Palette.Orange)
-                    Text(f.nameWithoutExtension, Modifier.weight(1f).padding(start = 12.dp))
-                    IconButton(onClick = { store.roomsDir.resolve(f.name).delete(); refresh++ }) {
-                        Icon(Icons.Filled.Delete, "Delete scan", tint = Palette.Taupe)
+        // Hero
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Box(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp))
+                    .background(Brush.verticalGradient(listOf(Palette.Ink, Palette.Charcoal)))
+                    .statusBarsPadding()
+                    .padding(start = 22.dp, end = 12.dp, top = 8.dp, bottom = 28.dp)
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(46.dp).clip(CircleShape).background(Palette.Cream), contentAlignment = Alignment.Center) {
+                            Image(painterResource(R.drawable.logo_mark), "SOUL 360 DESIGN logo", Modifier.size(40.dp))
+                        }
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text("SOUL 360", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, letterSpacing = 4.sp)
+                            Text("DESIGN", color = Palette.Orange, fontSize = 11.sp, letterSpacing = 7.sp)
+                        }
+                        IconButton(onClick = onOpenSettings) { Icon(Icons.Filled.Settings, "Settings", tint = Color.White) }
+                    }
+                    Spacer(Modifier.height(26.dp))
+                    Text("Design your space,\nbeautifully.", color = Color.White, fontFamily = FontFamily.Serif, fontSize = 32.sp, lineHeight = 38.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Place furniture in your room, then let AI turn it into a photoreal render.",
+                        color = Palette.Stone, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(end = 12.dp))
+                    Spacer(Modifier.height(22.dp))
+                    Row(Modifier.padding(end = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        HeroAction(Icons.Filled.CameraAlt, "Photograph\nyour room", primary = true, modifier = Modifier.weight(1f)) { launchCamera() }
+                        HeroAction(Icons.Filled.PhotoLibrary, "Choose\nfrom gallery", primary = false, modifier = Modifier.weight(1f)) {
+                            pickRoom.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        }
                     }
                 }
             }
         }
+
+        // AI feature banner
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Row(
+                Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(MaterialTheme.shapes.large)
+                    .background(Brush.horizontalGradient(listOf(Palette.Sand, Palette.Stone)))
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(42.dp).clip(CircleShape).background(Palette.Orange), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.AutoAwesome, null, tint = Color.White)
+                }
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text("AI Render with ChatGPT or Gemini", style = MaterialTheme.typography.titleSmall, color = Palette.Ink)
+                    Text("Open a design and tap  ✦ Render", style = MaterialTheme.typography.bodySmall, color = Palette.Charcoal)
+                }
+            }
+        }
+
+        // 3D studio tile
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Row(
+                Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(MaterialTheme.shapes.large)
+                    .background(Color.White).clickable { onOpenStudio(rooms.firstOrNull()) }.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.ViewInAr, null, tint = Palette.Orange, modifier = Modifier.size(28.dp))
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text("3D Studio", style = MaterialTheme.typography.titleSmall, color = Palette.Ink)
+                    Text(if (rooms.isEmpty()) "Import a room scan (.glb)" else "${rooms.size} room scan(s)",
+                        style = MaterialTheme.typography.bodySmall, color = Palette.Taupe)
+                }
+                TextButton(onClick = { importRoom.launch(arrayOf("*/*")) }) { Text("Import") }
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Palette.Taupe)
+            }
+        }
+
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp), verticalAlignment = Alignment.Bottom) {
+                Text("Your designs", style = MaterialTheme.typography.headlineSmall, color = Palette.Ink, modifier = Modifier.weight(1f))
+                if (projects.isNotEmpty()) Text("${projects.size}", color = Palette.Taupe)
+            }
+        }
+        if (projects.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text("No designs yet. Photograph or choose a room above to begin.",
+                    Modifier.padding(horizontal = 20.dp), color = Palette.Taupe, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        items(projects, key = { it.id }) { p ->
+            val index = projects.indexOf(p)
+            ProjectCard(
+                store, p,
+                modifier = Modifier.padding(start = if (index % 2 == 0) 16.dp else 0.dp, end = if (index % 2 == 1) 16.dp else 0.dp),
+                onClick = { onOpenProject(p) },
+                onDelete = { pendingDelete = p },
+            )
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.navigationBarsPadding()) }
     }
 
-    if (busy) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+    if (busy) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(color = Palette.Orange)
+    }
     error?.let { MessageDialog("Something went wrong", it) { error = null } }
     pendingDelete?.let { p ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete project?") },
-            text = { Text("\"${p.name}\" and its furniture images will be removed from this device.") },
+            title = { Text("Delete design?") },
+            text = { Text("\"${p.name}\" and its furniture images will be removed from this phone.") },
             confirmButton = { TextButton(onClick = { store.delete(p); pendingDelete = null; refresh++ }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Cancel") } },
         )
@@ -196,30 +252,35 @@ fun HomeScreen(
 }
 
 @Composable
-private fun SectionTitle(text: String, modifier: Modifier = Modifier) =
-    Text(text, modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.titleMedium, color = Palette.Ink)
+private fun HeroAction(icon: ImageVector, label: String, primary: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.clip(MaterialTheme.shapes.medium)
+            .background(if (primary) Palette.Orange else Color.White.copy(alpha = 0.10f))
+            .clickable(onClick = onClick)
+            .padding(16.dp)
+    ) {
+        Icon(icon, null, tint = Color.White)
+        Spacer(Modifier.height(18.dp))
+        Text(label, color = Color.White, style = MaterialTheme.typography.labelLarge, lineHeight = 18.sp)
+    }
+}
 
 @Composable
-private fun EmptyHint(text: String) =
-    Text(text, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), color = Palette.Taupe, style = MaterialTheme.typography.bodyMedium)
-
-@Composable
-private fun ProjectRow(store: ProjectStore, p: PhotoProject, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun ProjectCard(store: ProjectStore, p: PhotoProject, modifier: Modifier, onClick: () -> Unit, onDelete: () -> Unit) {
     var thumb by remember(p.id, p.modified) { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(p.id, p.modified) { thumb = withContext(Dispatchers.IO) { store.thumbnail(p) } }
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(width = 84.dp, height = 60.dp).clip(RoundedCornerShape(10.dp)).background(Palette.Sand)) {
-            thumb?.let { Image(it.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+    Box(modifier.fillMaxWidth().aspectRatio(0.8f).clip(MaterialTheme.shapes.medium).background(Palette.Sand).clickable(onClick = onClick)) {
+        thumb?.let { Image(it.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.7f))))
+        Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) {
+            Text(p.name.removePrefix("Room – "), color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${p.layers.size} item(s) · " + DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(p.modified)),
+                color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
         }
-        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(p.name, style = MaterialTheme.typography.bodyLarge)
-            Text("${p.layers.size} item(s) · " + DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(p.modified)),
-                style = MaterialTheme.typography.bodySmall, color = Palette.Taupe)
-        }
-        IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, "Delete project", tint = Palette.Taupe) }
-        Spacer(Modifier.size(0.dp))
+        Box(
+            Modifier.align(Alignment.TopEnd).padding(6.dp).size(30.dp).clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.35f)).clickable(onClick = onDelete),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Filled.Close, "Delete design", tint = Color.White, modifier = Modifier.size(16.dp)) }
     }
 }

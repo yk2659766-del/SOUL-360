@@ -23,6 +23,12 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.Typography
+import androidx.compose.material3.Shapes
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,11 +41,14 @@ import java.util.Date
 import java.util.Locale
 
 object Palette {
-    val Cream = Color(0xFFF5EFE6)
-    val Sand = Color(0xFFE7DDCF)
+    val Cream = Color(0xFFF7F2EB)
+    val Sand = Color(0xFFEDE4D7)
+    val Stone = Color(0xFFD9CEBF)
     val Taupe = Color(0xFFA39383)
-    val Ink = Color(0xFF3E3631)
+    val Ink = Color(0xFF1E1A17)
+    val Charcoal = Color(0xFF2B2521)
     val Orange = Color(0xFFE8772E)
+    val OrangeDeep = Color(0xFFC85A16)
 }
 
 private val colors: ColorScheme = lightColorScheme(
@@ -49,17 +58,35 @@ private val colors: ColorScheme = lightColorScheme(
     surface = Palette.Cream, onSurface = Palette.Ink,
     surfaceVariant = Palette.Sand, onSurfaceVariant = Palette.Ink,
     surfaceContainer = Palette.Sand, surfaceContainerHigh = Palette.Sand,
+    surfaceContainerLow = Palette.Cream, surfaceContainerLowest = Color.White,
     secondaryContainer = Palette.Sand, onSecondaryContainer = Palette.Ink,
+    outline = Palette.Stone, outlineVariant = Palette.Stone,
+)
+
+private val baseType = Typography()
+private val type = Typography(
+    displayLarge = baseType.displayLarge.copy(fontFamily = FontFamily.Serif),
+    displayMedium = baseType.displayMedium.copy(fontFamily = FontFamily.Serif),
+    displaySmall = baseType.displaySmall.copy(fontFamily = FontFamily.Serif),
+    headlineLarge = baseType.headlineLarge.copy(fontFamily = FontFamily.Serif),
+    headlineMedium = baseType.headlineMedium.copy(fontFamily = FontFamily.Serif),
+    headlineSmall = baseType.headlineSmall.copy(fontFamily = FontFamily.Serif),
+    titleLarge = baseType.titleLarge.copy(fontFamily = FontFamily.Serif),
+    titleMedium = baseType.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+    labelLarge = baseType.labelLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp),
 )
 
 @Composable
-fun Soul360Theme(content: @Composable () -> Unit) = MaterialTheme(colorScheme = colors, content = content)
+fun Soul360Theme(content: @Composable () -> Unit) =
+    MaterialTheme(colorScheme = colors, typography = type, shapes = Shapes(
+        small = RoundedCornerShape(12.dp), medium = RoundedCornerShape(18.dp), large = RoundedCornerShape(26.dp),
+    ), content = content)
 
 @Composable
 fun LabeledSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, display: String, onChange: (Float) -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, style = MaterialTheme.typography.labelLarge)
+            Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Ink)
             Spacer(Modifier.weight(1f))
             Text(display, style = MaterialTheme.typography.labelMedium, color = Palette.Taupe)
         }

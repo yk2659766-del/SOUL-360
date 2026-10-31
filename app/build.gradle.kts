@@ -12,12 +12,25 @@ android {
         applicationId = "com.soul360.design"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
+    }
+
+    signingConfigs {
+        create("stable") {
+            storeFile = rootProject.file("signing/soul360.jks")
+            storePassword = "rCypt71w5DFtyjRKgD54JqnWePxmjJbn"
+            keyAlias = "soul360"
+            keyPassword = "rCypt71w5DFtyjRKgD54JqnWePxmjJbn"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("stable")
+        }
         release {
+            signingConfig = signingConfigs.getByName("stable")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
         }
