@@ -68,6 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -173,7 +174,10 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
 
             val r = result
             if (r != null) {
-                ResultView(before = composite, after = r, modifier = Modifier.weight(1f).fillMaxWidth().padding(12.dp))
+                val appear = remember(r) { androidx.compose.animation.core.Animatable(0f) }
+                LaunchedEffect(r) { appear.animateTo(1f, androidx.compose.animation.core.tween(600)) }
+                ResultView(before = composite, after = r, modifier = Modifier.weight(1f).fillMaxWidth().padding(12.dp)
+                    .androidx_alpha(appear.value))
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { result = null }, modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) {
@@ -284,11 +288,15 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
             }
         }
 
-        if (running) {
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.72f))
+        androidx.compose.animation.AnimatedVisibility(
+            visible = running,
+            enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(300)),
+            exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(300)),
+        ) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.78f))
                 .pointerInput(Unit) { detectTapGestures { } }, contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
-                    CircularProgressIndicator(color = Palette.Orange, modifier = Modifier.size(56.dp), strokeWidth = 5.dp)
+                    LogoLoader(Modifier.size(110.dp), lineColor = Palette.Stone)
                     Spacer(Modifier.height(20.dp))
                     Text("${provider.label} is rendering your room…", color = Color.White, style = MaterialTheme.typography.titleMedium)
                     Text("${style.title} · ${RenderStyles.lighting[lightingIdx].first} · ${elapsed}s",
@@ -377,6 +385,9 @@ private fun ResultView(before: Bitmap, after: Bitmap, modifier: Modifier) {
         }
     }
 }
+
+private fun Modifier.androidx_alpha(a: Float): Modifier =
+    this.then(Modifier.graphicsLayer { alpha = a; scaleX = 0.96f + 0.04f * a; scaleY = 0.96f + 0.04f * a })
 
 private fun jpeg(b: Bitmap): ByteArray = ByteArrayOutputStream().also { b.compress(Bitmap.CompressFormat.JPEG, 92, it) }.toByteArray()
 private fun png(b: Bitmap): ByteArray = ByteArrayOutputStream().also { b.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()

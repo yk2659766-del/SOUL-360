@@ -71,7 +71,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import com.soul360.design.R
 import com.soul360.design.data.PhotoProject
 import com.soul360.design.data.ProjectStore
 import com.soul360.design.image.ImageTools
@@ -145,28 +144,24 @@ fun HomeScreen(
             Box(
                 Modifier.fillMaxWidth()
                     .clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp))
-                    .background(Brush.verticalGradient(listOf(Palette.Ink, Palette.Charcoal)))
+                    .background(Brush.verticalGradient(listOf(Palette.Cream, Palette.Sand)))
                     .statusBarsPadding()
-                    .padding(start = 22.dp, end = 12.dp, top = 8.dp, bottom = 28.dp)
+                    .padding(start = 20.dp, end = 12.dp, top = 4.dp, bottom = 24.dp)
             ) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(46.dp).clip(CircleShape).background(Palette.Cream), contentAlignment = Alignment.Center) {
-                            Image(painterResource(R.drawable.logo_mark), "SOUL 360 DESIGN logo", Modifier.size(40.dp))
-                        }
-                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text("SOUL 360", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, letterSpacing = 4.sp)
-                            Text("DESIGN", color = Palette.Orange, fontSize = 11.sp, letterSpacing = 7.sp)
-                        }
-                        IconButton(onClick = onOpenSettings) { Icon(Icons.Filled.Settings, "Settings", tint = Color.White) }
+                        Spacer(Modifier.weight(1f))
+                        IconButton(onClick = onOpenSettings) { Icon(Icons.Filled.Settings, "Settings", tint = Palette.Brown) }
                     }
-                    Spacer(Modifier.height(26.dp))
-                    Text("Design your space,\nbeautifully.", color = Color.White, fontFamily = FontFamily.Serif, fontSize = 32.sp, lineHeight = 38.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Place furniture in your room, then let AI turn it into a photoreal render.",
-                        color = Palette.Stone, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(end = 12.dp))
+                    FullLogo(markHeight = 92.dp, wordSize = 24.sp, modifier = Modifier.fillMaxWidth().padding(end = 8.dp))
                     Spacer(Modifier.height(22.dp))
-                    Row(Modifier.padding(end = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Design your space, beautifully.", color = Palette.Ink, fontFamily = FontFamily.Serif,
+                        fontSize = 25.sp, lineHeight = 31.sp, modifier = Modifier.padding(end = 8.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text("Place furniture in your room, then let AI turn it into a photoreal render.",
+                        color = Palette.Brown, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(end = 12.dp))
+                    Spacer(Modifier.height(18.dp))
+                    Row(Modifier.padding(end = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         HeroAction(Icons.Filled.CameraAlt, "Photograph\nyour room", primary = true, modifier = Modifier.weight(1f)) { launchCamera() }
                         HeroAction(Icons.Filled.PhotoLibrary, "Choose\nfrom gallery", primary = false, modifier = Modifier.weight(1f)) {
                             pickRoom.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -180,7 +175,7 @@ fun HomeScreen(
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
                 Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(MaterialTheme.shapes.large)
-                    .background(Brush.horizontalGradient(listOf(Palette.Sand, Palette.Stone)))
+                    .background(Brush.horizontalGradient(listOf(Palette.Ink, Palette.Charcoal)))
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -188,8 +183,8 @@ fun HomeScreen(
                     Icon(Icons.Filled.AutoAwesome, null, tint = Color.White)
                 }
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text("AI Render with ChatGPT or Gemini", style = MaterialTheme.typography.titleSmall, color = Palette.Ink)
-                    Text("Open a design and tap  ✦ Render", style = MaterialTheme.typography.bodySmall, color = Palette.Charcoal)
+                    Text("AI Render with ChatGPT or Gemini", style = MaterialTheme.typography.titleSmall, color = Color.White)
+                    Text("Open a design and tap  ✦ Render", style = MaterialTheme.typography.bodySmall, color = Palette.Stone)
                 }
             }
         }
@@ -228,7 +223,7 @@ fun HomeScreen(
             val index = projects.indexOf(p)
             ProjectCard(
                 store, p,
-                modifier = Modifier.padding(start = if (index % 2 == 0) 16.dp else 0.dp, end = if (index % 2 == 1) 16.dp else 0.dp),
+                modifier = Modifier.animateItem().padding(start = if (index % 2 == 0) 16.dp else 0.dp, end = if (index % 2 == 1) 16.dp else 0.dp),
                 onClick = { onOpenProject(p) },
                 onDelete = { pendingDelete = p },
             )
@@ -237,7 +232,7 @@ fun HomeScreen(
     }
 
     if (busy) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = Palette.Orange)
+        Box(Modifier.clip(MaterialTheme.shapes.large).background(Palette.Cream).padding(22.dp)) { LogoLoader() }
     }
     error?.let { MessageDialog("Something went wrong", it) { error = null } }
     pendingDelete?.let { p ->
@@ -255,13 +250,13 @@ fun HomeScreen(
 private fun HeroAction(icon: ImageVector, label: String, primary: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Column(
         modifier.clip(MaterialTheme.shapes.medium)
-            .background(if (primary) Palette.Orange else Color.White.copy(alpha = 0.10f))
+            .background(if (primary) Palette.Orange else Color.White)
             .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
-        Icon(icon, null, tint = Color.White)
+        Icon(icon, null, tint = if (primary) Color.White else Palette.Orange)
         Spacer(Modifier.height(18.dp))
-        Text(label, color = Color.White, style = MaterialTheme.typography.labelLarge, lineHeight = 18.sp)
+        Text(label, color = if (primary) Color.White else Palette.Ink, style = MaterialTheme.typography.labelLarge, lineHeight = 18.sp)
     }
 }
 

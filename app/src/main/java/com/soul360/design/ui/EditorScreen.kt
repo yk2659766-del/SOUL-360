@@ -10,6 +10,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -282,6 +288,8 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
     }
 
     val selected = project.layers.firstOrNull { it.id == selectedId }
+    var lastSelected by remember { mutableStateOf<FurnitureLayer?>(null) }
+    var lastRender by remember { mutableStateOf<Pair<Bitmap, List<Bitmap>>?>(null) }
 
     Column(Modifier.fillMaxSize().background(Palette.Ink).statusBarsPadding().navigationBarsPadding()) {
         // Top bar
@@ -370,7 +378,12 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
         }
 
         // Selected-layer controls
-        if (selected != null && !showOriginal) {
+        if (selected != null) lastSelected = selected
+        AnimatedVisibility(
+            visible = selected != null && !showOriginal,
+            enter = slideInVertically(tween(320)) { it / 2 } + fadeIn(tween(250)),
+            exit = slideOutVertically(tween(260)) { it / 2 } + fadeOut(tween(200)),
+        ) { lastSelected?.let { sel ->
             Surface(color = Palette.Cream, shape = RoundedCornerShape(24.dp), modifier = Modifier.padding(horizontal = 10.dp)) {
                 Column(Modifier.heightIn(max = 270.dp).verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -378,34 +391,34 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
                         TextButton(onClick = { selectedId = null }) { Text("Done") }
                     }
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        AssistChip(onClick = { cutout(selected) },
+                        AssistChip(onClick = { cutout(sel) },
                             label = { Text("Remove background") }, leadingIcon = { Icon(Icons.Filled.ContentCut, null) })
-                        AssistChip(onClick = { update(selected.id) { it.copy(flipped = !it.flipped) } },
+                        AssistChip(onClick = { update(sel.id) { it.copy(flipped = !it.flipped) } },
                             label = { Text("Flip") }, leadingIcon = { Icon(Icons.Filled.Flip, null) })
                         AssistChip(onClick = {
-                            project = project.copy(layers = project.layers.filter { it.id != selected.id } + selected)
+                            project = project.copy(layers = project.layers.filter { it.id != sel.id } + sel)
                         }, label = { Text("To front") }, leadingIcon = { Icon(Icons.Filled.FlipToFront, null) })
-                        AssistChip(onClick = { ai = AiState.ConfirmModel(selected) },
+                        AssistChip(onClick = { ai = AiState.ConfirmModel(sel) },
                             label = { Text("Make 3D") }, leadingIcon = { Icon(Icons.Filled.ViewInAr, null) })
                         AssistChip(onClick = {
-                            project = project.copy(layers = project.layers.filter { it.id != selected.id }); selectedId = null
+                            project = project.copy(layers = project.layers.filter { it.id != sel.id }); selectedId = null
                         }, label = { Text("Delete") }, leadingIcon = { Icon(Icons.Filled.Delete, null) })
                     }
-                    LabeledSlider("Size", selected.widthFraction, 0.03f..1.5f, "${(selected.widthFraction * 100).roundToInt()}%") { v ->
-                        update(selected.id) { it.copy(widthFraction = v) }
+                    LabeledSlider("Size", sel.widthFraction, 0.03f..1.5f, "${(sel.widthFraction * 100).roundToInt()}%") { v ->
+                        update(sel.id) { it.copy(widthFraction = v) }
                     }
-                    LabeledSlider("Rotation", selected.rotation, -180f..180f, "${selected.rotation.roundToInt()}°") { v ->
-                        update(selected.id) { it.copy(rotation = v) }
+                    LabeledSlider("Rotation", sel.rotation, -180f..180f, "${sel.rotation.roundToInt()}°") { v ->
+                        update(sel.id) { it.copy(rotation = v) }
                     }
-                    LabeledSlider("Brightness", selected.brightness, -0.5f..0.5f, "%+d".format((selected.brightness * 100).roundToInt())) { v ->
-                        update(selected.id) { it.copy(brightness = v) }
+                    LabeledSlider("Brightness", sel.brightness, -0.5f..0.5f, "%+d".format((sel.brightness * 100).roundToInt())) { v ->
+                        update(sel.id) { it.copy(brightness = v) }
                     }
-                    LabeledSlider("Shadow", selected.shadow, 0f..1f, "${(selected.shadow * 100).roundToInt()}%") { v ->
-                        update(selected.id) { it.copy(shadow = v) }
+                    LabeledSlider("Shadow", sel.shadow, 0f..1f, "${(sel.shadow * 100).roundToInt()}%") { v ->
+                        update(sel.id) { it.copy(shadow = v) }
                     }
                 }
             }
-        }
+        } }
 
         // Floating toolbar
         Row(
@@ -434,9 +447,9 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
 
     busy?.let { text ->
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.25f)), contentAlignment = Alignment.Center) {
-            Surface(shape = MaterialTheme.shapes.large) {
-                Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(24.dp)); HSpace(12); Text(text)
+            Surface(shape = MaterialTheme.shapes.large, color = Palette.Cream) {
+                Column(Modifier.padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    LogoLoader(); Text(text, Modifier.padding(top = 10.dp), color = Palette.Brown)
                 }
             }
         }
@@ -468,8 +481,13 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
         null -> {}
     }
 
-    renderInput?.let { (comp, furn) ->
-        RenderScreen(settings, comp, furn, onClose = { renderInput = null })
+    if (renderInput != null) lastRender = renderInput
+    AnimatedVisibility(
+        visible = renderInput != null,
+        enter = slideInVertically(tween(420)) { it / 3 } + fadeIn(tween(320)),
+        exit = slideOutVertically(tween(320)) { it / 3 } + fadeOut(tween(260)),
+    ) {
+        lastRender?.let { (comp, furn) -> RenderScreen(settings, comp, furn, onClose = { renderInput = null }) }
     }
 }
 

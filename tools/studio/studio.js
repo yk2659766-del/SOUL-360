@@ -16,7 +16,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xf5efe6);
+scene.background = new THREE.Color(0xf1e8d9);
 const camera = new THREE.PerspectiveCamera(55, 1, 0.01, 500);
 camera.position.set(4, 4, 6);
 const controls = new OrbitControls(camera, canvas);
@@ -26,7 +26,7 @@ scene.add(new THREE.HemisphereLight(0xffffff, 0xa39383, 1.6));
 const sun = new THREE.DirectionalLight(0xffffff, 1.4);
 sun.position.set(3, 8, 5);
 scene.add(sun);
-const grid = new THREE.GridHelper(20, 20, 0xa39383, 0xe7ddcf);
+const grid = new THREE.GridHelper(20, 20, 0xab9f8a, 0xe7dccb);
 scene.add(grid);
 
 const content = new THREE.Group();    // exported

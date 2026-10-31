@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -156,7 +157,8 @@ fun StudioScreen(store: ProjectStore, initialRoom: File?, onClose: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Palette.Cream).statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
-            Text("3D Studio", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+            LogoMark(Modifier.height(26.dp).padding(end = 8.dp))
+            Text("3D Studio", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
             IconButton(onClick = { js("S360.resetView()") }) { Icon(Icons.Filled.CenterFocusStrong, "Reset view") }
             IconButton(onClick = { js("S360.exportGLB()") }, enabled = room != null || hasFurniture) {
                 Icon(Icons.Filled.IosShare, "Export scene")

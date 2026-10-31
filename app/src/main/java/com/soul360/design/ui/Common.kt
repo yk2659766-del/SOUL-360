@@ -41,14 +41,15 @@ import java.util.Date
 import java.util.Locale
 
 object Palette {
-    val Cream = Color(0xFFF7F2EB)
-    val Sand = Color(0xFFEDE4D7)
-    val Stone = Color(0xFFD9CEBF)
-    val Taupe = Color(0xFFA39383)
-    val Ink = Color(0xFF1E1A17)
-    val Charcoal = Color(0xFF2B2521)
-    val Orange = Color(0xFFE8772E)
-    val OrangeDeep = Color(0xFFC85A16)
+    val Cream = Color(0xFFF1E8D9)      // logo background
+    val Sand = Color(0xFFE7DCCB)
+    val Stone = Color(0xFFD3C6B2)
+    val Taupe = Color(0xFFAB9F8A)      // logo line colour
+    val Brown = Color(0xFF6F614F)      // logo wordmark
+    val Ink = Color(0xFF2A241F)
+    val Charcoal = Color(0xFF3A322B)
+    val Orange = Color(0xFFE39147)     // logo sun, slightly deepened for white text
+    val OrangeDeep = Color(0xFFC7742F)
 }
 
 private val colors: ColorScheme = lightColorScheme(

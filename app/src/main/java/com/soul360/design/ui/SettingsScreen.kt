@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -39,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.soul360.design.data.AiProvider
 import com.soul360.design.data.AppSettings
 
@@ -52,7 +54,8 @@ fun SettingsScreen(settings: AppSettings, onClose: () -> Unit) {
     Column(Modifier.fillMaxSize().background(Palette.Cream).statusBarsPadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
-            Text("Settings", style = MaterialTheme.typography.headlineSmall)
+            Text("Settings", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+            LogoMark(Modifier.height(34.dp).padding(end = 14.dp))
         }
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
@@ -94,9 +97,11 @@ fun SettingsScreen(settings: AppSettings, onClose: () -> Unit) {
 
             Text("Keep your API keys private. Don't share this phone's app data or screenshots of the key.",
                 style = MaterialTheme.typography.labelSmall, color = Palette.Taupe)
-            TextButton(onClick = { openInBrowser(context, "https://github.com/yk2659766-del/SOUL-360") }) {
-                Text("App source & latest version")
-            }
+            FullLogo(markHeight = 56.dp, wordSize = 16.sp, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+            Text("Version 0.3.0", Modifier.fillMaxWidth(), color = Palette.Taupe, style = MaterialTheme.typography.labelSmall,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            TextButton(onClick = { openInBrowser(context, "https://github.com/yk2659766-del/SOUL-360/releases/latest") },
+                modifier = Modifier.fillMaxWidth()) { Text("Check for the latest version") }
         }
     }
 }
