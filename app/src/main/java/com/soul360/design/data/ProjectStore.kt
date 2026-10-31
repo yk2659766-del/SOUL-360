@@ -14,9 +14,9 @@ import java.util.Locale
 
 /**
  * On-device storage (app-private):
- *   files/projects/<id>/project.json, room.jpg, thumb.jpg, layer-*.png
- *   files/rooms/*.glb       – 3D room scans imported from a scanning app
- *   files/models/*.glb      – 3D furniture models (imported or AI-generated)
+ *   files/projects/<id>/ project.json, room.jpg, thumb.jpg, layer PNGs
+ *   files/rooms/ (.glb files)      – 3D room scans imported from a scanning app
+ *   files/models/ (.glb files)     – 3D furniture models (imported or AI-generated)
  */
 class ProjectStore(private val context: Context) {
     val projectsDir = File(context.filesDir, "projects").apply { mkdirs() }
