@@ -6,29 +6,43 @@ on:
 
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
-      - uses: gradle/actions/setup-gradle@v4
+      - name: Show Android SDK
+        run: echo "ANDROID_HOME=$ANDROID_HOME" && ls "$ANDROID_HOME" || true
       - name: Build debug APK
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug
+          set +e
+          ./gradlew --no-daemon --stacktrace assembleDebug 2>&1 | tee build.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" != "0" ]; then
+            # Surface the important lines as annotations (readable without log access).
+            grep -E "^e: |What went wrong|Could not|error:|Unresolved|> " build.log | head -60 > errors.txt
+            i=0
+            while [ $i -lt 60 ]; do
+              chunk=$(sed -n "$((i+1)),$((i+6))p" errors.txt | sed ':a;N;$!ba;s/\n/%0A/g')
+              [ -z "$chunk" ] && break
+              echo "::error title=Build error $((i/6+1))::$chunk"
+              i=$((i+6))
+            done
+          fi
+          exit $code
       - uses: actions/upload-artifact@v4
         with:
           name: Soul360Design-debug-apk
           path: app/build/outputs/apk/debug/*.apk
 
   backend-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: cd backend && python -m unittest discover -s tests -v
