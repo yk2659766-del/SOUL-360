@@ -1,0 +1,9 @@
+{
+  "name": "soul360-studio",
+  "private": true,
+  "scripts": {
+    "build": "esbuild studio.js --bundle --minify --format=iife --outfile=../../app/src/main/assets/studio/studio.js"
+  },
+  "dependencies": { "three": "0.187.0" },
+  "devDependencies": { "esbuild": "^0.25.0" }
+}
