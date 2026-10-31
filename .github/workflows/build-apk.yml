@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-24.04
@@ -37,6 +40,15 @@ jobs:
         with:
           name: Soul360Design-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+      - name: Publish APK as a direct download (Releases)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk Soul360Design.apk
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create latest Soul360Design.apk --title "SOUL 360 DESIGN (latest build)" \
+            --notes "Tap Soul360Design.apk below to download, then open it to install." --target "$GITHUB_SHA"
 
   backend-tests:
     runs-on: ubuntu-24.04
