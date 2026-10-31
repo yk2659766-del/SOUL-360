@@ -5,7 +5,12 @@ import android.graphics.Canvas
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.BitmapShader
+import android.graphics.Matrix
+import android.graphics.Path
+import android.graphics.Shader
 import com.soul360.design.data.FurnitureLayer
+import com.soul360.design.data.SurfaceLayer
 import kotlin.math.floor
 import kotlin.math.max
 
@@ -16,6 +21,28 @@ object LayerGeometry {
 }
 
 object Compositor {
+    /** Draws a tiled material texture perspective-mapped into the surface quad. */
+    fun drawSurface(canvas: Canvas, s: SurfaceLayer, tex: Bitmap, w: Float, h: Float) {
+        if (tex.width <= 0 || tex.height <= 0) return
+        val dst = FloatArray(8) { i -> s.pts[i] * if (i % 2 == 0) w else h }
+        fun dist(a: Int, b: Int) = kotlin.math.hypot(dst[a * 2] - dst[b * 2], dst[a * 2 + 1] - dst[b * 2 + 1])
+        val horiz = (dist(0, 1) + dist(3, 2)).coerceAtLeast(1f)
+        val vert = (dist(0, 3) + dist(1, 2)).coerceAtLeast(1f)
+        val regionW = s.tiles.coerceAtLeast(0.2f) * tex.width
+        val regionH = regionW * (vert / horiz)
+        val src = floatArrayOf(0f, 0f, regionW, 0f, regionW, regionH, 0f, regionH)
+        val m = Matrix()
+        if (!m.setPolyToPoly(src, 0, dst, 0, 4)) return
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+            shader = BitmapShader(tex, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT).apply { setLocalMatrix(m) }
+            alpha = (s.opacity.coerceIn(0f, 1f) * 255).toInt()
+        }
+        val path = Path().apply {
+            moveTo(dst[0], dst[1]); lineTo(dst[2], dst[3]); lineTo(dst[4], dst[5]); lineTo(dst[6], dst[7]); close()
+        }
+        canvas.drawPath(path, paint)
+    }
+
     /** Renders room + layers. Output longest edge is capped (default 2400 px) for memory. */
     fun render(
         room: Bitmap,
@@ -23,6 +50,7 @@ object Compositor {
         images: Map<String, Bitmap>,
         shadows: Map<String, Bitmap>,
         maxDimension: Int = 2400,
+        surfaces: List<SurfaceLayer> = emptyList(),
     ): Bitmap {
         val f = minOf(1f, maxDimension.toFloat() / max(room.width, room.height))
         val w = floor(room.width * f).toInt().coerceAtLeast(1)
@@ -31,6 +59,7 @@ object Compositor {
         val canvas = Canvas(out)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
         canvas.drawBitmap(room, null, RectF(0f, 0f, w.toFloat(), h.toFloat()), paint)
+        for (s in surfaces) images[s.imageFile]?.let { drawSurface(canvas, s, it, w.toFloat(), h.toFloat()) }
 
         for (layer in layers) {
             val img = images[layer.imageFile] ?: continue

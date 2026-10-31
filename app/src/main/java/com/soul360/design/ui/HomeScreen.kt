@@ -175,7 +175,7 @@ fun HomeScreen(
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(
                 Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(MaterialTheme.shapes.large)
-                    .background(Brush.horizontalGradient(listOf(Palette.Ink, Palette.Charcoal)))
+                    .background(Brush.horizontalGradient(listOf(Palette.Brown, Palette.Taupe)))
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

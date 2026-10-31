@@ -20,6 +20,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import com.soul360.design.ui.SplashScreen
 import com.soul360.design.data.AppSettings
@@ -71,8 +72,10 @@ private fun App(store: ProjectStore, settings: AppSettings) {
     AnimatedContent(
         targetState = showSplash,
         transitionSpec = {
-            (fadeIn(tween(500)) + scaleIn(tween(500), initialScale = 1.04f))
-                .togetherWith(fadeOut(tween(450)) + scaleOut(tween(450), targetScale = 0.96f))
+            // Splash already dissolves itself; the home screen rises gently into place.
+            (fadeIn(tween(700, easing = FastOutSlowInEasing)) +
+                slideInVertically(tween(800, easing = FastOutSlowInEasing)) { h -> h / 14 })
+                .togetherWith(fadeOut(tween(200)))
         },
         label = "splash",
     ) { splash ->

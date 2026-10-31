@@ -98,7 +98,7 @@ fun SettingsScreen(settings: AppSettings, onClose: () -> Unit) {
             Text("Keep your API keys private. Don't share this phone's app data or screenshots of the key.",
                 style = MaterialTheme.typography.labelSmall, color = Palette.Taupe)
             FullLogo(markHeight = 56.dp, wordSize = 16.sp, modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
-            Text("Version 0.3.0", Modifier.fillMaxWidth(), color = Palette.Taupe, style = MaterialTheme.typography.labelSmall,
+            Text("Version 0.4.0", Modifier.fillMaxWidth(), color = Palette.Taupe, style = MaterialTheme.typography.labelSmall,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             TextButton(onClick = { openInBrowser(context, "https://github.com/yk2659766-del/SOUL-360/releases/latest") },
                 modifier = Modifier.fillMaxWidth()) { Text("Check for the latest version") }

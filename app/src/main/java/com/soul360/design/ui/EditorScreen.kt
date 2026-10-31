@@ -10,6 +10,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.material.icons.filled.OpenWith
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Storefront
+import com.soul360.design.data.SurfaceLayer
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -135,6 +144,8 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
     var exportMenu by remember { mutableStateOf(false) }
     var ai by remember { mutableStateOf<AiState?>(null) }
     var renderInput by remember { mutableStateOf<Pair<Bitmap, List<Bitmap>>?>(null) }
+    var renderMaterials by remember { mutableStateOf<List<Pair<Bitmap, String>>>(emptyList()) }
+    var catalogOpen by remember { mutableStateOf(false) }
     var aiJob by remember { mutableStateOf<Job?>(null) }
 
     LaunchedEffect(initial.id) {
@@ -144,6 +155,10 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
             }
         }
         loaded.forEach { (name, bmp, sh) -> images[name] = bmp; shadows[name] = sh }
+        val textures = withContext(Dispatchers.IO) {
+            initial.surfaces.mapNotNull { sf -> store.layerImage(initial, sf.imageFile)?.let { sf.imageFile to it } }
+        }
+        textures.forEach { (name, bmp) -> images[name] = bmp }
         room = withContext(Dispatchers.IO) { store.roomImage(initial) }
     }
 
@@ -155,7 +170,7 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
         val r = room ?: return
         try {
             val p = project.copy(modified = System.currentTimeMillis())
-            val thumb = Compositor.render(r, p.layers, images, shadows, 600)
+            val thumb = Compositor.render(r, p.layers, images, shadows, 600, p.surfaces)
             store.save(p, thumb)
             store.pruneUnusedLayers(p)
             project = p
@@ -173,6 +188,22 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
         val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_STOP) persist(false) }
         lifecycle.addObserver(obs)
         onDispose { lifecycle.removeObserver(obs) }
+    }
+
+    fun updateSurface(id: String, change: (SurfaceLayer) -> SurfaceLayer) {
+        project = project.copy(surfaces = project.surfaces.map { if (it.id == id) change(it) else it })
+    }
+
+    suspend fun addMaterial(bmp: Bitmap, source: String, surface: String) {
+        val p = project
+        val (name, saved) = withContext(Dispatchers.IO) {
+            val n = store.writeLayerImage(p, ImageTools.downscale(bmp, 1024))
+            n to (store.layerImage(p, n) ?: bmp)
+        }
+        images[name] = saved
+        val sf = SurfaceLayer(imageFile = name, name = source, surface = surface, pts = SurfaceLayer.defaultPts(surface))
+        project = project.copy(surfaces = project.surfaces + sf)
+        selectedId = sf.id
     }
 
     suspend fun addLayer(bmp: Bitmap) {
@@ -229,7 +260,7 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
         busy = "Exporting…"
         scope.launch {
             try {
-                val out = withContext(Dispatchers.Default) { Compositor.render(r, project.layers, images, shadows) }
+                val out = withContext(Dispatchers.Default) { Compositor.render(r, project.layers, images, shadows, surfaces = project.surfaces) }
                 val name = "Soul360-${timestamp()}.png"
                 if (toGallery) saveToGallery(context, out, name)
                 else shareFile(context, withContext(Dispatchers.IO) { writePng(context, out, name) }, "image/png")
@@ -254,11 +285,13 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
         scope.launch {
             try {
                 val layers = project.layers
+                val surfaces = project.surfaces
                 val (comp, furn) = withContext(Dispatchers.Default) {
-                    val c = Compositor.render(r, layers, images, shadows, 1536)
+                    val c = Compositor.render(r, layers, images, shadows, 1536, surfaces)
                     val f = layers.map { it.imageFile }.distinct().mapNotNull { images[it] }
                     c to f
                 }
+                renderMaterials = surfaces.mapNotNull { sf -> images[sf.imageFile]?.let { it to "${sf.surface.lowercase()}${if (sf.name.isNotBlank()) " (${sf.name})" else ""}" } }
                 renderInput = comp to furn
             } catch (e: Exception) {
                 message = "AI Render" to (e.message ?: "Could not prepare the image.")
@@ -289,23 +322,24 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
 
     val selected = project.layers.firstOrNull { it.id == selectedId }
     var lastSelected by remember { mutableStateOf<FurnitureLayer?>(null) }
+    var lastSurface by remember { mutableStateOf<SurfaceLayer?>(null) }
     var lastRender by remember { mutableStateOf<Pair<Bitmap, List<Bitmap>>?>(null) }
 
-    Column(Modifier.fillMaxSize().background(Palette.Ink).statusBarsPadding().navigationBarsPadding()) {
+    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Palette.Cream, Palette.Sand))).statusBarsPadding().navigationBarsPadding()) {
         // Top bar
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { close() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Close and save", tint = Color.White) }
+            IconButton(onClick = { close() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Close and save", tint = Palette.Ink) }
             Column(Modifier.weight(1f)) {
                 Text(project.name.removePrefix("Room – "), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleLarge, color = Color.White)
+                    style = MaterialTheme.typography.titleLarge, color = Palette.Ink)
                 Text("${project.layers.size} item(s)", style = MaterialTheme.typography.labelSmall, color = Palette.Taupe)
             }
             IconButton(onClick = {
                 persist(reportErrors = true)
                 if (message == null) android.widget.Toast.makeText(context, "Saved", android.widget.Toast.LENGTH_SHORT).show()
-            }) { Icon(Icons.Filled.Save, "Save", tint = Color.White) }
+            }) { Icon(Icons.Filled.Save, "Save", tint = Palette.Ink) }
             Box {
-                IconButton(onClick = { exportMenu = true }) { Icon(Icons.Filled.IosShare, "Export", tint = Color.White) }
+                IconButton(onClick = { exportMenu = true }) { Icon(Icons.Filled.IosShare, "Export", tint = Palette.Ink) }
                 DropdownMenu(expanded = exportMenu, onDismissRequest = { exportMenu = false }) {
                     DropdownMenuItem(text = { Text("Share image…") }, onClick = { exportMenu = false; exportImage(false) })
                     DropdownMenuItem(text = { Text("Save to gallery") }, onClick = { exportMenu = false; exportImage(true) })
@@ -329,10 +363,27 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
                 Box(
                     Modifier
                         .size(with(density) { canvasW.toDp() }, with(density) { canvasH.toDp() })
+                        .shadow(14.dp, RoundedCornerShape(18.dp), ambientColor = Palette.Brown, spotColor = Palette.Brown)
                         .clip(RoundedCornerShape(18.dp))
-                        .pointerInput(Unit) { detectTapGestures { selectedId = null } }
+                        .pointerInput(Unit) {
+                            detectTapGestures { pos ->
+                                val nx = pos.x / size.width
+                                val ny = pos.y / size.height
+                                selectedId = if (showOriginal) null else project.surfaces.lastOrNull { pointInQuad(nx, ny, it.pts) }?.id
+                            }
+                        }
                 ) {
                     Image(roomImage, "Room photo", Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+                    if (!showOriginal && project.surfaces.isNotEmpty()) {
+                        val surfacesNow = project.surfaces
+                        Canvas(Modifier.fillMaxSize()) {
+                            drawIntoCanvas { c ->
+                                surfacesNow.forEach { sf ->
+                                    images[sf.imageFile]?.let { Compositor.drawSurface(c.nativeCanvas, sf, it, size.width, size.height) }
+                                }
+                            }
+                        }
+                    }
                     if (!showOriginal) {
                         project.layers.forEach { layer -> key(layer.id) {
                             val bmp = images[layer.imageFile]
@@ -361,6 +412,10 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
                                 )
                             }
                         } }
+                    }
+                    val selSurface = project.surfaces.firstOrNull { it.id == selectedId }
+                    if (selSurface != null && !showOriginal) {
+                        SurfaceHandles(selSurface, canvasW, canvasH) { pts -> updateSurface(selSurface.id) { it.copy(pts = pts) } }
                     }
                     if (showOriginal) {
                         Text("ORIGINAL", Modifier.align(Alignment.TopStart).padding(10.dp).clip(CircleShape)
@@ -420,16 +475,58 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
             }
         } }
 
+        val selectedSurface = project.surfaces.firstOrNull { it.id == selectedId }
+        if (selectedSurface != null) lastSurface = selectedSurface
+        AnimatedVisibility(
+            visible = selectedSurface != null && !showOriginal,
+            enter = slideInVertically(tween(320)) { it / 2 } + fadeIn(tween(250)),
+            exit = slideOutVertically(tween(260)) { it / 2 } + fadeOut(tween(200)),
+        ) { lastSurface?.let { sf ->
+            Surface(color = Palette.Cream, shape = RoundedCornerShape(24.dp), modifier = Modifier.padding(horizontal = 10.dp)) {
+                Column(Modifier.heightIn(max = 290.dp).verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Material · ${sf.surface}", style = MaterialTheme.typography.titleMedium, color = Palette.Ink)
+                            if (sf.name.isNotBlank()) Text(sf.name, style = MaterialTheme.typography.labelSmall, color = Palette.Taupe)
+                        }
+                        TextButton(onClick = { selectedId = null }) { Text("Done") }
+                    }
+                    Text("Drag the 4 orange corners onto the edges of the ${sf.surface.lowercase()}. Drag the centre dot to move it.",
+                        style = MaterialTheme.typography.bodySmall, color = Palette.Brown)
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        SurfaceLayer.SURFACES.forEach { name ->
+                            FilterChip(selected = sf.surface == name,
+                                onClick = { updateSurface(sf.id) { it.copy(surface = name, pts = SurfaceLayer.defaultPts(name)) } },
+                                label = { Text(name) })
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        AssistChip(onClick = { updateSurface(sf.id) { it.copy(pts = SurfaceLayer.defaultPts(it.surface)) } },
+                            label = { Text("Reset shape") }, leadingIcon = { Icon(Icons.Filled.Refresh, null) })
+                        AssistChip(onClick = {
+                            project = project.copy(surfaces = project.surfaces.filter { it.id != sf.id }); selectedId = null
+                        }, label = { Text("Delete") }, leadingIcon = { Icon(Icons.Filled.Delete, null) })
+                    }
+                    LabeledSlider("Pattern size", 21f - sf.tiles, 1f..20.5f, if (sf.tiles <= 2f) "Large" else if (sf.tiles >= 10f) "Small" else "Medium") { v ->
+                        updateSurface(sf.id) { it.copy(tiles = (21f - v).coerceIn(0.5f, 20f)) }
+                    }
+                    LabeledSlider("Opacity", sf.opacity, 0.3f..1f, "${(sf.opacity * 100).roundToInt()}%") { v ->
+                        updateSurface(sf.id) { it.copy(opacity = v) }
+                    }
+                }
+            }
+        } }
+
         // Floating toolbar
         Row(
-            Modifier.padding(12.dp).fillMaxWidth().clip(RoundedCornerShape(32.dp)).background(Palette.Charcoal).padding(6.dp),
+            Modifier.padding(12.dp).fillMaxWidth().shadow(10.dp, RoundedCornerShape(32.dp), ambientColor = Palette.Brown, spotColor = Palette.Brown).clip(RoundedCornerShape(32.dp)).background(Color.White).padding(6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             ToolButton(Icons.Filled.AddPhotoAlternate, "Add") {
                 pickFurniture.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             }
-            ToolButton(Icons.Filled.Search, "Find") { showSearch = true }
+            ToolButton(Icons.Filled.Storefront, "Catalogue") { catalogOpen = true }
             ToolButton(Icons.Filled.Compare, "Original", active = showOriginal) { showOriginal = !showOriginal }
             Row(
                 Modifier.clip(CircleShape)
@@ -487,7 +584,31 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
         enter = slideInVertically(tween(420)) { it / 3 } + fadeIn(tween(320)),
         exit = slideOutVertically(tween(320)) { it / 3 } + fadeOut(tween(260)),
     ) {
-        lastRender?.let { (comp, furn) -> RenderScreen(settings, comp, furn, onClose = { renderInput = null }) }
+        lastRender?.let { (comp, furn) -> RenderScreen(settings, comp, furn, renderMaterials, onClose = { renderInput = null }) }
+    }
+
+    AnimatedVisibility(
+        visible = catalogOpen,
+        enter = slideInVertically(tween(420)) { it / 3 } + fadeIn(tween(320)),
+        exit = slideOutVertically(tween(320)) { it / 3 } + fadeOut(tween(260)),
+    ) {
+        CatalogScreen(
+            onPick = { pick ->
+                catalogOpen = false
+                busy = "Adding from ${pick.source}…"
+                scope.launch {
+                    try {
+                        when (pick) {
+                            is CatalogPick.Item -> addLayer(pick.image)
+                            is CatalogPick.Material -> addMaterial(pick.image, pick.source, pick.surface)
+                        }
+                    } catch (e: Exception) {
+                        message = "Could not add" to (e.message ?: "")
+                    } finally { busy = null }
+                }
+            },
+            onClose = { catalogOpen = false },
+        )
     }
 }
 
@@ -495,13 +616,13 @@ fun EditorScreen(store: ProjectStore, settings: AppSettings, initial: PhotoProje
 private fun ToolButton(icon: ImageVector, label: String, active: Boolean = false, onClick: () -> Unit) {
     Column(
         Modifier.clip(RoundedCornerShape(22.dp))
-            .background(if (active) Palette.Orange.copy(alpha = 0.28f) else Color.Transparent)
+            .background(if (active) Palette.Orange.copy(alpha = 0.22f) else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, label, tint = Color.White, modifier = Modifier.size(22.dp))
-        Text(label, color = Palette.Stone, style = MaterialTheme.typography.labelSmall)
+        Icon(icon, label, tint = Palette.Ink, modifier = Modifier.size(22.dp))
+        Text(label, color = Palette.Brown, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -587,4 +708,73 @@ private fun SearchDialog(onDismiss: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
     )
+}
+
+
+/** Ray-casting point-in-polygon test for a 4-corner quad in normalised coordinates. */
+private fun pointInQuad(x: Float, y: Float, pts: List<Float>): Boolean {
+    var inside = false
+    var j = 3
+    for (i in 0 until 4) {
+        val xi = pts[i * 2]; val yi = pts[i * 2 + 1]
+        val xj = pts[j * 2]; val yj = pts[j * 2 + 1]
+        if ((yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / ((yj - yi).takeIf { it != 0f } ?: 1e-6f) + xi) inside = !inside
+        j = i
+    }
+    return inside
+}
+
+/** Orange outline, 4 draggable corner handles and a centre move handle for a material surface. */
+@Composable
+private fun SurfaceHandles(s: SurfaceLayer, canvasW: Float, canvasH: Float, onChange: (List<Float>) -> Unit) {
+    val density = LocalDensity.current
+    val current by rememberUpdatedState(s)
+    val change by rememberUpdatedState(onChange)
+    val cw by rememberUpdatedState(canvasW)
+    val ch by rememberUpdatedState(canvasH)
+    val handle = 30.dp
+    val half = with(density) { (handle / 2).toPx() }
+
+    Canvas(Modifier.fillMaxSize()) {
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(s.pts[0] * size.width, s.pts[1] * size.height)
+            for (i in 1 until 4) lineTo(s.pts[i * 2] * size.width, s.pts[i * 2 + 1] * size.height)
+            close()
+        }
+        drawPath(path, Color.White, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5f))
+        drawPath(path, Palette.Orange, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f,
+            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(18f, 12f))))
+    }
+    for (i in 0 until 4) {
+        val x = s.pts[i * 2] * canvasW
+        val y = s.pts[i * 2 + 1] * canvasH
+        Box(
+            Modifier.offset { IntOffset((x - half).roundToInt(), (y - half).roundToInt()) }
+                .size(handle).clip(CircleShape).background(Color.White).border(4.dp, Palette.Orange, CircleShape)
+                .pointerInput(s.id, i) {
+                    detectDragGestures { ev, drag ->
+                        ev.consume()
+                        val p = current.pts.toMutableList()
+                        p[i * 2] = (p[i * 2] + drag.x / cw).coerceIn(-0.3f, 1.3f)
+                        p[i * 2 + 1] = (p[i * 2 + 1] + drag.y / ch).coerceIn(-0.3f, 1.3f)
+                        change(p)
+                    }
+                }
+        )
+    }
+    val cx = (0 until 4).map { s.pts[it * 2] }.average().toFloat() * canvasW
+    val cy = (0 until 4).map { s.pts[it * 2 + 1] }.average().toFloat() * canvasH
+    Box(
+        Modifier.offset { IntOffset((cx - half).roundToInt(), (cy - half).roundToInt()) }
+            .size(handle).clip(CircleShape).background(Palette.Orange)
+            .pointerInput(s.id) {
+                detectDragGestures { ev, drag ->
+                    ev.consume()
+                    val dx = drag.x / cw
+                    val dy = drag.y / ch
+                    change(current.pts.mapIndexed { idx, v -> if (idx % 2 == 0) v + dx else v + dy })
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) { Icon(Icons.Filled.OpenWith, "Move", tint = Color.White, modifier = Modifier.size(18.dp)) }
 }

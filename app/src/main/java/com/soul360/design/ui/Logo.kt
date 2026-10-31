@@ -1,6 +1,7 @@
 package com.soul360.design.ui
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -161,9 +162,12 @@ fun LogoLoader(modifier: Modifier = Modifier, lineColor: Color = Brand.Line) {
     }
 }
 
+private val EaseOutQuint = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+private val EaseInOutSine = CubicBezierEasing(0.37f, 0f, 0.63f, 1f)
+
 /**
- * Opening animation: arch draws in, the sun rises, the hill curve sweeps across,
- * then the wordmark fades in. Tap to skip.
+ * Opening animation: the arch draws in, the sun rises, the hill curve sweeps across and the
+ * wordmark gently settles into place. Then everything drifts up and dissolves. Tap to skip.
  */
 @Composable
 fun SplashScreen(onFinished: () -> Unit) {
@@ -172,19 +176,19 @@ fun SplashScreen(onFinished: () -> Unit) {
     val sun = remember { Animatable(0f) }
     val curve = remember { Animatable(0f) }
     val word = remember { Animatable(0f) }
-    val lift = remember { Animatable(18f) }
+    val exit = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
-        val a = launch { arch.animateTo(1f, tween(750, easing = FastOutSlowInEasing)) }
-        delay(350)
-        val s = launch { sun.animateTo(1f, tween(650, easing = FastOutSlowInEasing)) }
-        delay(350)
-        val c = async { curve.animateTo(1f, tween(600, easing = FastOutSlowInEasing)) }
-        delay(350)
-        launch { lift.animateTo(0f, tween(550, easing = FastOutSlowInEasing)) }
-        word.animateTo(1f, tween(550))
-        a.join(); s.join(); c.await()
+        delay(120)   // let the first frame settle so the animation starts smoothly
+        launch { arch.animateTo(1f, tween(1100, easing = EaseInOutSine)) }
+        delay(500)
+        launch { sun.animateTo(1f, tween(900, easing = EaseOutQuint)) }
         delay(450)
+        launch { curve.animateTo(1f, tween(850, easing = EaseInOutSine)) }
+        delay(450)
+        word.animateTo(1f, tween(900, easing = EaseOutQuint))
+        delay(350)
+        exit.animateTo(1f, tween(650, easing = EaseInOutSine))
         done()
     }
 
@@ -192,11 +196,24 @@ fun SplashScreen(onFinished: () -> Unit) {
         Modifier.fillMaxSize().background(Brand.Background).pointerInput(Unit) { detectTapGestures { done() } },
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Column(
+            Modifier.graphicsLayer {
+                alpha = 1f - exit.value
+                translationY = -40f * exit.value * density
+                val sc = 1f - 0.04f * exit.value
+                scaleX = sc; scaleY = sc
+            },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
             LogoMark(Modifier.height(170.dp), arch = arch.value, sun = sun.value, curve = curve.value)
             Spacer(Modifier.height(26.dp))
             LogoWordmark(
-                Modifier.graphicsLayer { translationY = lift.value * density },
+                Modifier.graphicsLayer {
+                    translationY = (1f - word.value) * 16f * density
+                    val sc = 0.94f + 0.06f * word.value
+                    scaleX = sc; scaleY = sc
+                },
                 size = 30.sp, alpha = word.value,
             )
         }

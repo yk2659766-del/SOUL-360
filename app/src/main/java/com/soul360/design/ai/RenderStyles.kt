@@ -45,10 +45,14 @@ object RenderStyles {
         "Studio bright" to "bright, crisp editorial lighting like an interior magazine shoot",
     )
 
-    fun buildPrompt(style: RenderStyle, lightingDesc: String, restyleRoom: Boolean, notes: String, furnitureCount: Int): String = buildString {
+    fun buildPrompt(style: RenderStyle, lightingDesc: String, restyleRoom: Boolean, notes: String, furnitureCount: Int, materials: List<String> = emptyList()): String = buildString {
         append("You are an expert interior designer and architectural visualiser. ")
         append("Image 1 is a photo of a room in which furniture cut-outs have been roughly placed by the user. ")
         if (furnitureCount > 0) append("Images 2 to ${furnitureCount + 1} show the exact furniture pieces for reference. ")
+        if (materials.isNotEmpty()) {
+            val first = furnitureCount + 2
+            append("Images $first to ${first + materials.size - 1} are material samples (finishes) the designer chose. ")
+        }
         append("Create ONE photorealistic, high-end interior photograph of this room.\n")
         append("Rules:\n")
         append("- Keep the same camera angle, framing and perspective as image 1.\n")
@@ -60,6 +64,9 @@ object RenderStyles {
         append("- Keep every placed furniture item in the same position and similar size. Preserve each item's design, shape, colour and material")
         if (furnitureCount > 0) append(" as shown in the reference images")
         append(". Correct its perspective and scale so it stands naturally on the floor, aligned with the room.\n")
+        materials.forEachIndexed { i, m ->
+            append("- Apply material image ${furnitureCount + 2 + i} realistically to the $m, matching its colour, pattern and texture at real-world scale, following the room's perspective, with natural lighting and reflections.\n")
+        }
         append("- Add realistic contact shadows, reflections and light that match the scene. Remove any cut-out edges or halos.\n")
         append("- Style: ${style.prompt}\n")
         append("- Lighting: $lightingDesc.\n")

@@ -83,7 +83,7 @@ class ProjectStore(private val context: Context) {
     }
 
     fun pruneUnusedLayers(project: PhotoProject) {
-        val used = project.layers.map { it.imageFile }.toSet()
+        val used = (project.layers.map { it.imageFile } + project.surfaces.map { it.imageFile }).toSet()
         folder(project).listFiles()?.forEach { f ->
             if (f.name.startsWith("layer-") && f.name !in used) f.delete()
         }

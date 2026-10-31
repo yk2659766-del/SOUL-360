@@ -99,7 +99,7 @@ import kotlin.math.roundToInt
  * image to ChatGPT or Gemini and shows a before/after result.
  */
 @Composable
-fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitmap>, onClose: () -> Unit) {
+fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitmap>, materials: List<Pair<Bitmap, String>> = emptyList(), onClose: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -141,10 +141,13 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
             try {
                 val images = withContext(Dispatchers.Default) {
                     val list = mutableListOf(AiImage(jpeg(ImageTools.downscale(composite, 1536)), "image/jpeg"))
-                    furniture.take(5).forEach { list += AiImage(png(ImageTools.downscale(it, 768)), "image/png") }
+                    furniture.take(4).forEach { list += AiImage(png(ImageTools.downscale(it, 768)), "image/png") }
+                    materials.take(3).forEach { list += AiImage(jpeg(ImageTools.downscale(it.first, 768)), "image/jpeg") }
                     list
                 }
-                val prompt = RenderStyles.buildPrompt(style, RenderStyles.lighting[lightingIdx].second, restyle, notes, images.size - 1)
+                val furnCount = furniture.take(4).size
+                val prompt = RenderStyles.buildPrompt(style, RenderStyles.lighting[lightingIdx].second, restyle, notes, furnCount,
+                    materials.take(3).map { it.second })
                 val bytes = when (provider) {
                     AiProvider.OPENAI -> DirectAI.openAiEdit(key, settings.openaiModel, images, prompt)
                     AiProvider.GEMINI -> DirectAI.geminiEdit(key, settings.geminiModel, images, prompt)
@@ -161,14 +164,14 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Palette.Ink)) {
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Palette.Cream, Palette.Sand)))) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             // Header
             Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { if (!running) { if (result != null) result = null else onClose() } }) {
-                    Icon(Icons.Filled.Close, "Close", tint = Color.White)
+                    Icon(Icons.Filled.Close, "Close", tint = Palette.Ink)
                 }
-                Text("AI Render", style = MaterialTheme.typography.titleLarge, color = Color.White, modifier = Modifier.weight(1f))
+                Text("AI Render", style = MaterialTheme.typography.titleLarge, color = Palette.Ink, modifier = Modifier.weight(1f))
                 ProviderToggle(provider, enabled = !running) { provider = it }
             }
 
@@ -180,11 +183,11 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
                     .androidx_alpha(appear.value))
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { result = null }, modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) {
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Palette.Ink)) {
                         Icon(Icons.Filled.Refresh, null, Modifier.size(18.dp)); HSpace(6); Text("New style")
                     }
                     OutlinedButton(onClick = { shareFile(context, writePng(context, r, "Soul360-AI-${timestamp()}.png"), "image/png") },
-                        modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) {
+                        modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = Palette.Ink)) {
                         Icon(Icons.Filled.Share, null, Modifier.size(18.dp)); HSpace(6); Text("Share")
                     }
                     Button(onClick = { saveToGallery(context, r, "Soul360-AI-${timestamp()}.png") }, modifier = Modifier.weight(1f)) {
@@ -206,7 +209,7 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
                             val selected = s.id == styleId
                             Column(
                                 Modifier.width(132.dp).clip(MaterialTheme.shapes.medium)
-                                    .background(Palette.Charcoal)
+                                    .background(Color.White)
                                     .border(2.dp, if (selected) Palette.Orange else Color.Transparent, MaterialTheme.shapes.medium)
                                     .clickable(enabled = !running) { styleId = s.id }
                                     .padding(10.dp)
@@ -214,7 +217,7 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
                                 Box(Modifier.fillMaxWidth().height(58.dp).clip(RoundedCornerShape(12.dp))
                                     .background(Brush.linearGradient(s.swatch.map { Color(it) })))
                                 Spacer(Modifier.height(8.dp))
-                                Text(s.title, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                                Text(s.title, color = Palette.Ink, style = MaterialTheme.typography.labelLarge, maxLines = 1)
                                 Text(s.subtitle, color = Palette.Taupe, style = MaterialTheme.typography.labelSmall, maxLines = 1)
                             }
                         }
@@ -228,7 +231,7 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
                                 selected = i == lightingIdx, onClick = { lightingIdx = i }, enabled = !running,
                                 label = { Text(RenderStyles.lighting[i].first) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    labelColor = Color.White, selectedContainerColor = Palette.Orange, selectedLabelColor = Color.White),
+                                    labelColor = Palette.Ink, selectedContainerColor = Palette.Orange, selectedLabelColor = Color.White),
                             )
                         }
                     }
@@ -236,7 +239,7 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
                     if (style.allowsRestyle) {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("Refresh walls & decor", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                                Text("Refresh walls & decor", color = Palette.Ink, style = MaterialTheme.typography.labelLarge)
                                 Text("Let AI restyle wall colour, floor, rugs and decor to the style",
                                     color = Palette.Taupe, style = MaterialTheme.typography.bodySmall)
                             }
@@ -254,8 +257,8 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
                     )
 
                     if (!hasKey) {
-                        Column(Modifier.padding(12.dp).clip(MaterialTheme.shapes.medium).background(Palette.Charcoal).padding(14.dp)) {
-                            Text("Connect ${provider.label}", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                        Column(Modifier.padding(12.dp).clip(MaterialTheme.shapes.medium).background(Color.White).padding(14.dp)) {
+                            Text("Connect ${provider.label}", color = Palette.Ink, style = MaterialTheme.typography.titleMedium)
                             Text(
                                 if (provider == AiProvider.OPENAI) "Paste your OpenAI API key (from platform.openai.com → API keys). Billing must be enabled on your OpenAI account."
                                 else "Paste your Gemini API key (from aistudio.google.com → Get API key). Image models may need billing enabled.",
@@ -282,7 +285,7 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
                         Icon(Icons.Filled.AutoAwesome, null); HSpace(8)
                         Text("Render with ${provider.label}", style = MaterialTheme.typography.titleMedium)
                     }
-                    Text("Your design${if (furniture.isNotEmpty()) " and ${furniture.size.coerceAtMost(5)} furniture image(s)" else ""} will be sent to ${provider.label}. Each render uses your API credits.",
+                    Text("Your design${if (furniture.isNotEmpty()) ", ${furniture.size.coerceAtMost(4)} item image(s)" else ""}${if (materials.isNotEmpty()) " and ${materials.size.coerceAtMost(3)} material(s)" else ""} will be sent to ${provider.label}. Each render uses your API credits.",
                         Modifier.padding(top = 6.dp), color = Palette.Taupe, style = MaterialTheme.typography.labelSmall)
                 }
             }
@@ -293,18 +296,18 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
             enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(300)),
             exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(300)),
         ) {
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.78f))
+            Box(Modifier.fillMaxSize().background(Palette.Cream.copy(alpha = 0.95f))
                 .pointerInput(Unit) { detectTapGestures { } }, contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
-                    LogoLoader(Modifier.size(110.dp), lineColor = Palette.Stone)
+                    LogoLoader(Modifier.size(110.dp))
                     Spacer(Modifier.height(20.dp))
-                    Text("${provider.label} is rendering your room…", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                    Text("${provider.label} is rendering your room…", color = Palette.Ink, style = MaterialTheme.typography.titleMedium)
                     Text("${style.title} · ${RenderStyles.lighting[lightingIdx].first} · ${elapsed}s",
-                        color = Palette.Stone, style = MaterialTheme.typography.bodySmall)
+                        color = Palette.Brown, style = MaterialTheme.typography.bodySmall)
                     Text("This usually takes 20–90 seconds. Keep the app open.",
                         Modifier.padding(top = 8.dp), color = Palette.Taupe, style = MaterialTheme.typography.bodySmall)
                     Spacer(Modifier.height(16.dp))
-                    OutlinedButton(onClick = { job?.cancel() }, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) {
+                    OutlinedButton(onClick = { job?.cancel() }, colors = ButtonDefaults.outlinedButtonColors(contentColor = Palette.Ink)) {
                         Text("Stop waiting")
                     }
                 }
@@ -316,12 +319,12 @@ fun RenderScreen(settings: AppSettings, composite: Bitmap, furniture: List<Bitma
 
 @Composable
 private fun ProviderToggle(selected: AiProvider, enabled: Boolean, onSelect: (AiProvider) -> Unit) {
-    Row(Modifier.clip(CircleShape).background(Palette.Charcoal).padding(3.dp)) {
+    Row(Modifier.clip(CircleShape).background(Color.White).padding(3.dp)) {
         AiProvider.entries.forEach { p ->
             val on = p == selected
             Text(
                 p.label,
-                color = if (on) Color.White else Palette.Stone,
+                color = if (on) Color.White else Palette.Brown,
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.clip(CircleShape)
                     .background(if (on) Palette.Orange else Color.Transparent)
@@ -339,9 +342,9 @@ private fun SectionLabel(text: String) =
 
 @Composable
 private fun darkFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = Color.White, unfocusedTextColor = Color.White, disabledTextColor = Palette.Stone,
+    focusedTextColor = Palette.Ink, unfocusedTextColor = Palette.Ink, disabledTextColor = Palette.Taupe,
     focusedBorderColor = Palette.Orange, unfocusedBorderColor = Palette.Taupe,
-    focusedLabelColor = Palette.Orange, unfocusedLabelColor = Palette.Stone,
+    focusedLabelColor = Palette.Orange, unfocusedLabelColor = Palette.Brown,
     focusedPlaceholderColor = Palette.Taupe, unfocusedPlaceholderColor = Palette.Taupe,
     cursorColor = Palette.Orange,
 )
